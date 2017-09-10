@@ -1,0 +1,109 @@
+# genoci
+
+genoci is a tool for generating OCI images from yaml specifications.
+
+The goal is to produce builds in layers, i.e.
+
+```yaml
+cirros:
+  base: empty
+  expand: ./cirros.tar.gz
+modified:
+  base: cirros
+  run: |
+    echo "Hello, world" > /hw
+```
+
+or
+
+```yaml
+centos:
+  base: empty
+  expand: /var/cache/atom/centos.tar.gz
+updated:
+  base: centos
+  run: |
+    yum -y update
+withskopeo:
+  base: centos
+  install: /var/cache/atom/skopeo-0.1.23-1.git1bbd87f.el7.x86_64.rpm 
+filled:
+  copy:
+    - /etc/hosts etc_hosts
+    - /etc/hostname etc_hostname
+```
+
+To test with the included cirros.yaml, first
+
+```bash
+wget https://download.cirros-cloud.net/0.3.5/cirros-0.3.5-i386-lxc.tar.gz
+ln -s cirros-0.3.5-i386-lxc.tar.gz cirros.tar.gz
+genoci centos.yaml
+```
+
+After running that, you will have an OCI layout with (at least) two layers and
+four tags (existing layouts are not deleted, so you may have more, older
+layers).  So you can
+
+```bash
+# umoci ls --layout oci
+cirros-2017-09-26_1
+cirros
+modified-2017-09-26_1
+modified
+```
+
+Each "tag-(date)" tag is from a unique genoci build.  Each "tag" without a date
+will point to the latest build.  If you run genoci again with the same file,
+you'll get:
+
+```bash
+# umoci ls --layout oci
+cirros-2017-09-26_1
+cirros-2017-09-26_2
+cirros
+modified-2017-09-26_1
+modified-2017-09-26_2
+modified
+```
+
+Notes:
+
+1. each layer target must have a base and an action.
+1. 'base' is either 'empty' or an existing tag.  The existing tag
+can be either already existing in the OCI layout, or produced earlier
+in the build.
+1. genoci currently won't try to stop you from having circular deps.
+1. 'expand' means expand a tarball
+1. 'run' means run a script from the host (with no arguments), or
+run shell in the container (with arguments).  This works for now but
+is not clean/robust and will be cleaned up.
+1. 'copy' means copy a file from the host into the container.  It
+should be a single pair of filenames separated by a space, the
+source path on the host and the relative dest path in the container,
+or a yaml list of such pairs.
+1. 'install' means install a .rpm or .deb package.
+
+## Dependencies:
+
+This requires umoci and will likely require skopeo, depending on
+where we cut off the workflow.
+
+## Todo
+
+Next todos are:
+
+1. integrate with [lpack](http://github.com/atom-deps/lpack) for
+transparent exploitation of copy-on-write btrfs subvolumes for
+quick iterations.
+
+1. run in a user namespace by default.  This will require a newer
+umoci build which won't fail on things like expanding tarballs with
+devices.
+
+In the meantime, depending on the install steps required, many
+builds should be doable in a user namespace by using:
+
+```bash
+lxc-usernsexec ./genoci data.yaml
+```

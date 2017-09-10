@@ -1,0 +1,7 @@
+cirros:
+  base: empty
+  expand: ./cirros.tar.gz
+modified:
+  base: cirros
+  run: |
+    echo "Hello, world" > /hw
