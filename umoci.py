@@ -20,6 +20,7 @@ import datetime
 import os
 import shutil
 import subprocess
+import sys
 
 class Chdir:
       def __init__( self, newPath ):  
@@ -30,23 +31,43 @@ class Chdir:
         os.chdir( self.savedPath )
 
 class Umoci:
-    def __init__(self, dir, name, chroot):
-        self.parentdir = dir
+    # basedir is the directory under which the oci layout is found
+    # name is the name of the oci layout
+    # use_lpack is a dict with optional parameters to pass to lpack
+    def __init__(self, basedir, name, use_lpack):
+        self.parentdir = basedir
         self.name = name
-        self.chrootdir = chroot
-        self.unpackdir = os.path.dirname(chroot)
-        odir = Chdir(dir)
+        self.unpackdir = basedir + "/unpacked"
+        self.chrootdir = self.unpackdir + "/rootfs"
+        self.use_lpack = use_lpack
+        odir = Chdir(basedir)
         cmd = 'umoci init --layout=%s' % name
         if 0 != os.system(cmd):
-            # This already existed;  TODO - check if user wanted it cleaned
+            # This already existed
             pass
 
+        needempty = False
         if not self.HasTag("empty"):
             cmd = 'umoci new --image %s:empty' % name
             assert(0 == os.system(cmd))
-            cmd = 'umoci unpack --image %s:empty %s' % (name, self.unpackdir)
-            print "Executing: " + cmd
-            assert(0 == os.system(cmd))
+            needempty = True
+
+        # If lpack was requested, set it up.
+        # Trust lpack to use the same config we are.
+        if use_lpack.has_key("btrfsmount"):
+            self.chrootdir = use_lpack["btrfsmount"] + "/mounted"
+            if needempty:
+                os.system("umoci unpack --image %s:empty %s" % (name, self.unpackdir))
+                os.system("umoci repack --image %s:empty %s" % (name, self.unpackdir))
+                os.system("rm -rf " + self.unpackdir)
+                os.system("btrfs subvolume create %s/empty" % use_lpack["btrfsmount"])
+            del odir
+            os.system("lpack unpack")
+            return
+        elif needempty:
+            os.system("umoci unpack --image %s:empty %s" % (name, self.unpackdir))
+            os.system("umoci repack --image %s:empty %s" % (name, self.unpackdir))
+            os.system("rm -rf " + self.unpackdir)
         del odir
 
     def ListTags(self):
@@ -99,6 +120,13 @@ class Umoci:
         del odir
 
     def Tag(self, tag):
+        if self.use_lpack.has_key("btrfsmount"):
+            cmd = "lpack checkin " + tag
+            ret = os.system(cmd)
+            if ret != 0:
+                print "Error checking in tag: " + tag
+                sys.exit(1)
+            return
         odir = Chdir(self.parentdir)
         cmd = 'umoci repack --image %s:%s %s' % (self.name, tag, self.unpackdir)
         assert(0 == os.system(cmd))
@@ -111,17 +139,18 @@ class Umoci:
         del odir
 
     def Unpack(self, tag):
+        if self.use_lpack:
+            ret = os.system("lpack checkout " + tag)
+            if ret != 0:
+                print "Error checking out base tag: " + tag
+                sys.exit(1)
+            return
         odir = Chdir(self.parentdir)
         cmd = 'rm -rf %s' % self.unpackdir
         os.popen(cmd).read()
         cmd = 'umoci unpack --image %s:%s %s' % (self.name, tag, self.unpackdir)
         assert(0 == os.system(cmd))
         del odir
-
-    def ExpandTarball(self, path):
-        self.Unpack("empty")
-        cmd = 'tar -C %s -xvf %s' % (self.chrootdir, path)
-        os.system(cmd)
 
     # TODO - handle arguments
     def RunInChroot(self, filename):

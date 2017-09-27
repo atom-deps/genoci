@@ -89,17 +89,57 @@ or a yaml list of such pairs.
 This requires umoci and will likely require skopeo, depending on
 where we cut off the workflow.
 
+## Use with lpack
+
+This tool can be used with [lpack](http://github.com/atom-deps/lpack)
+for transparent exploitation of copy-on-write btrfs subvolumes for
+quick iterations.  Currently this is quite inflexible, as we are still
+figuring out ideal workflows.  (Feedback very much appreciated.)  To
+start using lpack, fetch the lpack git tree, copy all ".sh" files into
+/usr/share/lpack, and copy the lpack script to /usr/bin.  Next, you need
+to setup a btrfs to use.  Currently only a loopback filesystem is supported.
+You can set this up using:
+
+```bash
+lpack setup
+```
+
+This will setup btrfs in your local directory.  If you prefer to keep it
+elsewhere, then create ~/.config/atom/config.yaml specifying the
+location for loopback file and mounted btrfs:
+
+```bash
+mkdir -p ~/.config/atom
+cat > ~/.config/atom/config.yaml << EOF
+lofile: /tmp/lofile
+btrfsmount: /tmp/btrfs.mount
+EOF
+lpack setup
+```
+
+You can also specify an alternate location for your OCI layout, using
+the variable 'layoutdir' in the same configuration file.
+
+Once this is done, genoci should take care to unpack the OCI layout into
+your btrfs filesystem on each run (skipping the work for any already-expanded
+images).  For each layer it creates, it will ask lpack to 'checkout' the
+base tag, make the changes there, then ask lpack to 'checkin' the new updated
+tree with the specified new tag.
+
+When done, use 'lpack unsetup' to unmount and destroy the btrfs.  Note that
+you really want to do this before updating your ~/.config/atom/config.yaml,
+else you'll end up with stray btrfs filesystems.
+
 ## Todo
 
 Next todos are:
 
-1. integrate with [lpack](http://github.com/atom-deps/lpack) for
-transparent exploitation of copy-on-write btrfs subvolumes for
-quick iterations.
-
 1. run in a user namespace by default.  This will require a newer
 umoci build which won't fail on things like expanding tarballs with
 devices.
+
+1. be more flexible with respect to CoW filesystem setups.  I.e. support
+existing btrfs filesystems and maybe LVM.
 
 In the meantime, depending on the install steps required, many
 builds should be doable in a user namespace by using:

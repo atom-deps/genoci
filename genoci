@@ -19,6 +19,7 @@
 
 from distutils.version import StrictVersion
 import os
+import os.path
 import shutil
 import sys
 import umoci
@@ -26,8 +27,36 @@ import yaml
 
 # by default work in current dir
 basedir = os.getcwd()
+layoutname="oci"
+
+def parse_config_file(filename):
+    configs = {}
+    retvalues = {}
+    with open(filename, "r") as outfile:
+        configs = yaml.load(outfile)
+    if configs.has_key("btrfsmount"):
+        retvalues["btrfsmount"] = configs["btrfsmount"]
+    if configs.has_key("layoutdir"):
+        retvalues["layoutdir"] = configs["layoutdir"]
+    return retvalues
+
+def parse_config():
+    filename = "./atom_config.yaml"
+    if os.path.exists(filename):
+        return parse_config_file(filename)
+    filename = "~/.config/atom/config.yaml"
+    if os.path.exists(os.path.expanduser(filename)):
+        return parse_config_file(filename)
+    return {}
+
+configvalues = parse_config()
+lpack_info = {}
+if configvalues.has_key("btrfsmount"):
+	lpack_info = {"btrfsmount": configvalues["btrfsmount"]}
+if configvalues.has_key("layoutdir"):
+    basedir, layoutname = os.path.split(configvalues["layoutdir"])
+
 unpackdir = basedir + "/unpacked"
-rootfsdir = unpackdir + "/rootfs"
 
 def is_version(x):
     try:
@@ -49,7 +78,7 @@ def run_file(OCI, fname):
 def run_shell(OCI, shell):
     return OCI.ShellInChroot(shell)
 
-OCI = umoci.Umoci(basedir, "oci", rootfsdir)
+OCI = umoci.Umoci(basedir, layoutname, lpack_info)
 
 if len(sys.argv) < 2:
     usage()
@@ -138,6 +167,7 @@ def install_pkgs(OCI, tags, k):
 def expand_tarball(OCI, tar):
     cmd = 'tar --acls --xattrs --auto-compress -xf %s -C %s' % (tar, OCI.chrootdir)
     print "Expanding tarball: %s" % tar
+    print "Expanding tarball: " + tar + " into " + OCI.chrootdir
     ret = os.system(cmd)
     if ret != 0:
         print "Error installing"
@@ -166,8 +196,6 @@ while len(todo) != 0:
         # expand base
         if base == "empty":
             OCI.Unpack("empty")
-        elif os.path.exists(base):
-            OCI.ExpandTarball(base)
         elif OCI.HasTag(base):
             OCI.Unpack(base)
         else:
@@ -184,5 +212,6 @@ while len(todo) != 0:
         do_tag(OCI, k)
         completed.append(k)
 
-shutil.rmtree(unpackdir)
+if os.path.exists(unpackdir):
+    shutil.rmtree(unpackdir)
 print "Done"
