@@ -34,9 +34,9 @@ def parse_config_file(filename):
     retvalues = {}
     with open(filename, "r") as outfile:
         configs = yaml.load(outfile)
-    if configs.has_key("btrfsmount"):
+    if "btrfsmount" in configs:
         retvalues["btrfsmount"] = configs["btrfsmount"]
-    if configs.has_key("layoutdir"):
+    if "layoutdir" in configs:
         retvalues["layoutdir"] = configs["layoutdir"]
     return retvalues
 
@@ -51,9 +51,9 @@ def parse_config():
 
 configvalues = parse_config()
 lpack_info = {}
-if configvalues.has_key("btrfsmount"):
+if "btrfsmount" in configvalues:
 	lpack_info = {"btrfsmount": configvalues["btrfsmount"]}
-if configvalues.has_key("layoutdir"):
+if "layoutdir" in configvalues:
     basedir, layoutname = os.path.split(configvalues["layoutdir"])
 
 unpackdir = basedir + "/unpacked"
@@ -96,8 +96,8 @@ completed = []
 for k in tags:
     todo.append(k)
 
-print "Loaded yaml: " + str(tags)
-print "To do: " + str(todo)
+print("Loaded yaml: %s" % str(tags))
+print("To do: %s" % str(todo))
 
 # run: run a command inside the image.
 def process_run(OCI, tags, k):
@@ -107,17 +107,17 @@ def process_run(OCI, tags, k):
         return
     if os.path.exists(run):
         if run_file(OCI, run) is not True:
-            print "Failed running %s for %s" % (run, k)
+            print("Failed running %s for %s" % (run, k))
             sys.exit(1)
     else:
         if run_shell(OCI, run)is not True:
-            print "Failed executing shell for " + k
+            print("Failed executing shell for %s" % k)
             sys.exit(1)
 
 def copy_file(OCI, pair):
     copy = pair.split()
     if len(copy) != 2:
-        print "Error: badly formed \"from to\" file copy spec: " + pair
+        print("Error: badly formed \"from to\" file copy spec: %s" % pair)
         sys.exit(1)
     OCI.CopyFile(copy[0], copy[1])
 
@@ -136,21 +136,21 @@ def copy_files(OCI, tags, k):
 def install_pkg(OCI, pkg):
     s = os.path.splitext(pkg)
     if len(s) != 2:
-        print "Bad package name: " + pkg
+        print("Bad package name: %s" % pkg)
         sys.exit(1)
     if s[1] == ".deb":
         cmd = 'chroot %s dpkg -i %s' % (OCI.chrootdir, pkg)
     elif s[1] == ".rpm":
         cmd = 'chroot %s rpm -Uvh %s' % (OCI.chrootdir, pkg)
     else:
-        print "Unknown package type: " + s[1]
+        print("Unknown package type: %s" % s[1])
         sys.exit(1)
-    print "Installing package: %s" % pkg
+    print("Installing package: %s" % pkg)
     ret = os.system(cmd)
     if ret != 0:
-        print "Error installing"
+        print("Error installing")
         sys.exit(1)
-    print pkg + " installed"
+    print ("%s installed" % pkg)
 
 # install: install an rpm from the host
 # arguments: a list of package filenames, separated by spaces
@@ -166,13 +166,13 @@ def install_pkgs(OCI, tags, k):
 
 def expand_tarball(OCI, tar):
     cmd = 'tar --acls --xattrs --auto-compress -xf %s -C %s' % (tar, OCI.chrootdir)
-    print "Expanding tarball: %s" % tar
-    print "Expanding tarball: " + tar + " into " + OCI.chrootdir
+    print("Expanding tarball: %s" % tar)
+    print("Expanding tarball %s into %s" % (tar, OCI.chrootdir))
     ret = os.system(cmd)
     if ret != 0:
-        print "Error installing"
+        print("Error installing")
         sys.exit(1)
-    print tar + " expanded"
+    print("%s expanded" % tar)
 
 # expand: expand a tarball from the host
 def expand_tarballs(OCI, tags, k):
@@ -192,14 +192,14 @@ while len(todo) != 0:
             continue
         todo.remove(k)
 
-        print "Building " + k
+        print("Building %s" % k)
         # expand base
         if base == "empty":
             OCI.Unpack("empty")
         elif OCI.HasTag(base):
             OCI.Unpack(base)
         else:
-            print "Unknown base: " + base
+            print("Unknown base: %s" % base)
             sys.exit(1)
 
 
@@ -214,4 +214,4 @@ while len(todo) != 0:
 
 if os.path.exists(unpackdir):
     shutil.rmtree(unpackdir)
-print "Done"
+print("Done")

@@ -54,7 +54,7 @@ class Umoci:
 
         # If lpack was requested, set it up.
         # Trust lpack to use the same config we are.
-        if use_lpack.has_key("btrfsmount"):
+        if "btrfsmount" in use_lpack:
             self.chrootdir = use_lpack["btrfsmount"] + "/mounted"
             if needempty:
                 os.system("umoci unpack --image %s:empty %s" % (name, self.unpackdir))
@@ -86,8 +86,7 @@ class Umoci:
         today = str(datetime.date.today())
         datetag = tag + "-" + today + "_"
         l = len(datetag)
-        for t in self.ListTags().split('\n'):
-            print "t %s len(t) %d l %d" % (t, len(t), l)
+        for t in self.ListTags().decode('utf8').split('\n'):
             if len(t) <= l:
                 continue
             if t[0:l] != datetag:
@@ -120,11 +119,11 @@ class Umoci:
         del odir
 
     def Tag(self, tag):
-        if self.use_lpack.has_key("btrfsmount"):
+        if "btrfsmount" in self.use_lpack:
             cmd = "lpack checkin " + tag
             ret = os.system(cmd)
             if ret != 0:
-                print "Error checking in tag: " + tag
+                print("Error checking in tag: %s" % tag)
                 sys.exit(1)
             return
         odir = Chdir(self.parentdir)
@@ -142,7 +141,7 @@ class Umoci:
         if self.use_lpack:
             ret = os.system("lpack checkout " + tag)
             if ret != 0:
-                print "Error checking out base tag: " + tag
+                print("Error checking out base tag: %s" % tag)
                 sys.exit(1)
             return
         odir = Chdir(self.parentdir)
