@@ -33,9 +33,12 @@ def parse_config_file(filename):
     configs = {}
     retvalues = {}
     with open(filename, "r") as outfile:
+        print("loading yaml file: %s" % filename)
         configs = yaml.load(outfile)
+        print(configs)
     if "btrfsmount" in configs:
-        retvalues["btrfsmount"] = configs["btrfsmount"]
+        x = configs["btrfsmount"]
+        retvalues["btrfsmount"] = x
     if "layoutdir" in configs:
         retvalues["layoutdir"] = configs["layoutdir"]
     return retvalues
@@ -52,7 +55,7 @@ def parse_config():
 configvalues = parse_config()
 lpack_info = {}
 if "btrfsmount" in configvalues:
-	lpack_info = {"btrfsmount": configvalues["btrfsmount"]}
+    lpack_info = {"btrfsmount": configvalues["btrfsmount"]}
 if "layoutdir" in configvalues:
     basedir, layoutname = os.path.split(configvalues["layoutdir"])
 
@@ -100,11 +103,7 @@ print("Loaded yaml: %s" % str(tags))
 print("To do: %s" % str(todo))
 
 # run: run a command inside the image.
-def process_run(OCI, tags, k):
-    try:
-        run = tags[k]["run"]
-    except:
-        return
+def process_run(OCI, run):
     if os.path.exists(run):
         if run_file(OCI, run) is not True:
             print("Failed running %s for %s" % (run, k))
@@ -113,6 +112,17 @@ def process_run(OCI, tags, k):
         if run_shell(OCI, run)is not True:
             print("Failed executing shell for %s" % k)
             sys.exit(1)
+
+def process_runs(OCI, tags, k):
+    try:
+        runs = tags[k]["run"]
+    except:
+        return
+    if type(runs) is list:
+        for r in runs:
+            process_run(OCI, r)
+    else:
+        process_run(OCI, runs)
 
 def copy_file(OCI, pair):
     copy = pair.split()
@@ -207,7 +217,7 @@ while len(todo) != 0:
         copy_files(OCI, tags, k)
         install_pkgs(OCI, tags, k)
         expand_tarballs(OCI, tags, k)
-        process_run(OCI, tags, k)
+        process_runs(OCI, tags, k)
 
         do_tag(OCI, k)
         completed.append(k)
