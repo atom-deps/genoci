@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 # umoci.py: a python class wrapping the umoci binary, for use by genoci.
 #
@@ -46,6 +46,8 @@ class Umoci:
             # This already existed
             pass
 
+        self.clearconfig()
+
         needempty = False
         if not self.HasTag("empty"):
             cmd = 'umoci new --image %s:empty' % name
@@ -69,6 +71,9 @@ class Umoci:
             os.system("umoci repack --image %s:empty %s" % (name, self.unpackdir))
             os.system("rm -rf " + self.unpackdir)
         del odir
+
+    def clearconfig(self):
+        self.configs = { "entrypoint": [] }
 
     def ListTags(self):
         odir = Chdir(self.parentdir)
@@ -125,11 +130,19 @@ class Umoci:
             if ret != 0:
                 print("Error checking in tag: %s" % tag)
                 sys.exit(1)
-            return
-        odir = Chdir(self.parentdir)
-        cmd = 'umoci repack --image %s:%s %s' % (self.name, tag, self.unpackdir)
-        assert(0 == os.system(cmd))
-        del odir
+        else:
+            odir = Chdir(self.parentdir)
+            cmd = 'umoci repack --image %s:%s %s' % (self.name, tag, self.unpackdir)
+            assert(0 == os.system(cmd))
+            del odir
+
+        # set the entrypoint if specified
+        if len(self.configs["entrypoint"]) != 0:
+            cmd = 'umoci config --image %s/%s:%s' % (self.parentdir, self.name, tag)
+            for arg in self.configs["entrypoint"]:
+                cmd = cmd + ' --config.cmd="' + arg + '"'
+            ret = os.system(cmd)
+            assert(0 == ret)
 
     def AddTag(self, tag, newtag):
         odir = Chdir(self.parentdir)

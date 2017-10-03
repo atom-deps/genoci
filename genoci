@@ -20,6 +20,7 @@
 from distutils.version import StrictVersion
 import os
 import os.path
+import shlex
 import shutil
 import sys
 import umoci
@@ -124,6 +125,13 @@ def process_runs(OCI, tags, k):
     else:
         process_run(OCI, runs)
 
+def process_cmds(OCI, tags, k):
+    try:
+        runs = tags[k]["entrypoint"]
+    except:
+        return
+    OCI.configs["entrypoint"] = shlex.split(runs)
+
 def copy_file(OCI, pair):
     copy = pair.split()
     if len(copy) != 2:
@@ -197,6 +205,7 @@ def expand_tarballs(OCI, tags, k):
 while len(todo) != 0:
     for k in todo:
         # check to see whether it depends on another not-completed base
+        OCI.clearconfig()
         base = tags[k]["base"]
         if base in todo:
             continue
@@ -218,6 +227,7 @@ while len(todo) != 0:
         install_pkgs(OCI, tags, k)
         expand_tarballs(OCI, tags, k)
         process_runs(OCI, tags, k)
+        process_cmds(OCI, tags, k)
 
         do_tag(OCI, k)
         completed.append(k)

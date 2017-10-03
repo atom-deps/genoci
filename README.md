@@ -12,6 +12,7 @@ modified:
   base: cirros
   run: |
     echo "Hello, world" > /hw
+  entrypoint: /bin/echo "hello world"
 ```
 
 or
