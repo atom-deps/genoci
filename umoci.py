@@ -61,7 +61,7 @@ class Umoci:
             if needempty:
                 os.system("umoci unpack --image %s:empty %s" % (name, self.unpackdir))
                 os.system("umoci repack --image %s:empty %s" % (name, self.unpackdir))
-                os.system("rm -rf " + self.unpackdir)
+                os.system("rm -rf -- " + self.unpackdir)
                 os.system("btrfs subvolume create %s/empty" % use_lpack["btrfsmount"])
             del odir
             os.system("lpack unpack")
@@ -69,7 +69,7 @@ class Umoci:
         elif needempty:
             os.system("umoci unpack --image %s:empty %s" % (name, self.unpackdir))
             os.system("umoci repack --image %s:empty %s" % (name, self.unpackdir))
-            os.system("rm -rf " + self.unpackdir)
+            os.system("rm -rf -- " + self.unpackdir)
         del odir
 
     def clearconfig(self):
@@ -158,7 +158,7 @@ class Umoci:
                 sys.exit(1)
             return
         odir = Chdir(self.parentdir)
-        cmd = 'rm -rf %s' % self.unpackdir
+        cmd = 'rm -rf -- %s' % self.unpackdir
         os.popen(cmd).read()
         cmd = 'umoci unpack --image %s:%s %s' % (self.name, tag, self.unpackdir)
         assert(0 == os.system(cmd))
