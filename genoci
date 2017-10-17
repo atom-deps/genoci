@@ -156,6 +156,23 @@ def install_pkg(OCI, pkg):
     if len(s) != 2:
         print("Bad package name: %s" % pkg)
         sys.exit(1)
+    pkgfile = OCI.chrootdir + "/" + pkg
+    if pkg[0:7] == "http://" or pkg[0:8] == "https://" or pkg[0:6] == "ftp://":
+        bname = os.path.basename(pkg)
+        if not os.path.exists(bname):
+            pkgfile = OCI.chrootdir + "/" + bname
+            urllib2.urlopen(pkg, timeout = 5)
+            contents= response.read()
+            f = open(pkgfile, 'w' )
+            f.write(contents)
+            f.close()
+        pkg = bname
+
+    delfile = False
+    if not os.path.exists(OCI.chrootdir + "/" + pkg):
+        delfile = True
+        shutil.copy(pkg, OCI.chrootdir)
+
     if s[1] == ".deb":
         cmd = 'chroot %s dpkg -i %s' % (OCI.chrootdir, pkg)
     elif s[1] == ".rpm":
@@ -165,6 +182,8 @@ def install_pkg(OCI, pkg):
         sys.exit(1)
     print("Installing package: %s" % pkg)
     ret = os.system(cmd)
+    if delfile:
+        os.remove(pkgfile)
     if ret != 0:
         print("Error installing")
         sys.exit(1)
@@ -178,6 +197,9 @@ def install_pkgs(OCI, tags, k):
         files = tags[k]["install"]
     except:
         return
+    if type(files) is list:
+        for pkg in files:
+            install_pkg(OCI, pkg)
     pkglist = files.split()
     for p in pkglist:
         install_pkg(OCI, p)
