@@ -30,35 +30,58 @@ import yaml
 basedir = os.getcwd()
 layoutname="oci"
 
+defconfig = {
+        "driver": "vfs",
+        "layoutdir": "./oci",
+        "btrfsmount": "./btrfs",
+        "lvbasedir": "./lvm",
+        "vg": "stacker",
+        "lvdev": "nbd0"
+    }
+
 def parse_config_file(filename):
     configs = {}
-    retvalues = {}
     with open(filename, "r") as outfile:
-        print("loading yaml file: %s" % filename)
         configs = yaml.load(outfile)
-        print(configs)
-    if "btrfsmount" in configs:
-        x = configs["btrfsmount"]
-        retvalues["btrfsmount"] = x
-    if "layoutdir" in configs:
-        retvalues["layoutdir"] = configs["layoutdir"]
-    return retvalues
+    return configs
 
 def parse_config():
     filename = "./atom_config.yaml"
+    retvalues = defconfig
+    configs = {}
     if os.path.exists(filename):
-        return parse_config_file(filename)
-    filename = "~/.config/atom/config.yaml"
-    if os.path.exists(os.path.expanduser(filename)):
-        return parse_config_file(filename)
-    return {}
+        configs = parse_config_file(filename)
+
+    if "driver" in configs:
+        retvalues["driver"] = configs["driver"]
+
+    if retvalues["driver"] == "btrfs":
+        if "btrfsmount" in configs:
+            retvalues["btrfsmount"] = configs["btrfsmount"]
+        if "lofile" in configs:
+            retvalues["lofile"] = configs["lofile"]
+        else:
+            retvalues["lofile"] = "btrfs.img"
+
+    elif retvalues["driver"] == "lvm":
+        if "lvbasedir" in configs:
+            retvalues["lvbasedir"] = configs["lvbasedir"]
+        if "vg" in configs:
+            retvalues["vg"] = configs["vg"]
+        if "lvdev" in configs:
+            retvalues["vg"] = configs["vg"]
+        if "lofile" in configs:
+            retvalues["lofile"] = configs["lofile"]
+        else:
+            retvalues["lofile"] = "./lvm.img"
+
+    if "layoutdir" in configs:
+        retvalues["layoutdir"] = configs["layoutdir"]
+
+    return retvalues
 
 configvalues = parse_config()
-lpack_info = {}
-if "btrfsmount" in configvalues:
-    lpack_info = {"btrfsmount": configvalues["btrfsmount"]}
-if "layoutdir" in configvalues:
-    basedir, layoutname = os.path.split(configvalues["layoutdir"])
+basedir, layoutname = os.path.split(configvalues["layoutdir"])
 
 unpackdir = basedir + "/unpacked"
 
@@ -82,7 +105,7 @@ def run_file(OCI, fname):
 def run_shell(OCI, shell):
     return OCI.ShellInChroot(shell)
 
-OCI = umoci.Umoci(basedir, layoutname, lpack_info)
+OCI = umoci.Umoci(basedir, layoutname, configvalues)
 
 if len(sys.argv) < 2:
     usage()

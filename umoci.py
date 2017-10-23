@@ -33,13 +33,13 @@ class Chdir:
 class Umoci:
     # basedir is the directory under which the oci layout is found
     # name is the name of the oci layout
-    # use_lpack is a dict with optional parameters to pass to lpack
-    def __init__(self, basedir, name, use_lpack):
+    # lpack_config is a dict with optional parameters to pass to lpack
+    def __init__(self, basedir, name, lpack_config):
         self.parentdir = basedir
         self.name = name
         self.unpackdir = basedir + "/unpacked"
         self.chrootdir = self.unpackdir + "/rootfs"
-        self.use_lpack = use_lpack
+        self.lpack_config = lpack_config
         odir = Chdir(basedir)
         cmd = 'umoci init --layout=%s' % name
         if 0 != os.system(cmd):
@@ -56,17 +56,26 @@ class Umoci:
 
         # If lpack was requested, set it up.
         # Trust lpack to use the same config we are.
-        if "btrfsmount" in use_lpack:
-            self.chrootdir = use_lpack["btrfsmount"] + "/mounted"
+        if lpack_config["driver"] == "btrfs":
+            self.chrootdir = lpack_config["btrfsmount"] + "/mounted"
             if needempty:
                 os.system("umoci unpack --image %s:empty %s" % (name, self.unpackdir))
                 os.system("umoci repack --image %s:empty %s" % (name, self.unpackdir))
                 os.system("rm -rf -- " + self.unpackdir)
-                os.system("btrfs subvolume create %s/empty" % use_lpack["btrfsmount"])
+                os.system("btrfs subvolume create %s/empty" % lpack_config["btrfsmount"])
             del odir
             os.system("lpack unpack")
             return
-        elif needempty:
+        elif lpack_config["driver"] == "lvm":
+            self.chrootdir = lpack_config["lvbasedir"] + "/mounted"
+            if needempty:
+                os.system("umoci unpack --image %s:empty %s" % (name, self.unpackdir))
+                os.system("umoci repack --image %s:empty %s" % (name, self.unpackdir))
+                os.system("rm -rf -- " + self.unpackdir)
+            del odir
+            os.system("lpack unpack")
+            return
+        if needempty:
             os.system("umoci unpack --image %s:empty %s" % (name, self.unpackdir))
             os.system("umoci repack --image %s:empty %s" % (name, self.unpackdir))
             os.system("rm -rf -- " + self.unpackdir)
@@ -124,7 +133,7 @@ class Umoci:
         del odir
 
     def Tag(self, tag):
-        if "btrfsmount" in self.use_lpack:
+        if self.lpack_config["driver"] != "vfs":
             cmd = "lpack checkin " + tag
             ret = os.system(cmd)
             if ret != 0:
@@ -151,7 +160,7 @@ class Umoci:
         del odir
 
     def Unpack(self, tag):
-        if self.use_lpack:
+        if self.lpack_config["driver"] != "vfs":
             ret = os.system("lpack checkout " + tag)
             if ret != 0:
                 print("Error checking out base tag: %s" % tag)
