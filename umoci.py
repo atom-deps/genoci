@@ -191,7 +191,10 @@ class Umoci:
     def ShellInChrootAsFile(self, data):
         # We need a shell of some sort
         if not os.path.exists(self.chrootdir + "/bin/sh"):
-            os.makedirs(self.chrootdir + "/bin")
+            try:
+                os.makedirs(self.chrootdir + "/bin")
+            except:  # ignore already existing
+                pass
             shutil.copy("/bin/busybox", self.chrootdir + "/bin/sh")
 
         fullname = self.chrootdir + "/ocirun"
@@ -206,10 +209,7 @@ class Umoci:
         return ret == 0
 
     def ShellInChroot(self, data):
-        if len(data.split('\n')) > 1:
-            return self.ShellInChrootAsFile(data)
-        ret = os.system("chroot %s %s" % (self.chrootdir, data))
-        return ret == 0
+        return self.ShellInChrootAsFile(data)
 
     def CopyFile(self, src, dest):
         shutil.copy(src, self.chrootdir + "/" + dest)
