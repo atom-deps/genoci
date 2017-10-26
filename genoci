@@ -223,6 +223,7 @@ def install_pkgs(OCI, tags, k):
     if type(files) is list:
         for pkg in files:
             install_pkg(OCI, pkg)
+        return
     pkglist = files.split()
     for p in pkglist:
         install_pkg(OCI, p)
@@ -242,6 +243,10 @@ def expand_tarballs(OCI, tags, k):
     try:
         files = tags[k]["expand"]
     except:
+        return
+    if type(files) is list:
+        for p in files:
+            expand_tarball(OCI, p)
         return
     pkglist = files.split()
     for p in pkglist:
