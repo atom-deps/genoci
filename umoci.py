@@ -209,10 +209,7 @@ class Umoci:
         return ret == 0
 
     def ShellInChroot(self, data):
-        if len(data.split('\n')) > 1:
-            return self.ShellInChrootAsFile(data)
-        ret = os.system("chroot %s %s" % (self.chrootdir, data))
-        return ret == 0
+        return self.ShellInChrootAsFile(data)
 
     def CopyFile(self, src, dest):
         shutil.copy(src, self.chrootdir + "/" + dest)
