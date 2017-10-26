@@ -1,7 +1,6 @@
 language: python
 before_install:
   - sudo apt update
-  - sudo apt -y upgrade
   - sudo apt -y install jq python-tz python3 python-yaml
   - sudo wget -O /usr/bin/umoci http://people.ubuntu.com/~serge-hallyn/umoci.static
   - sudo chmod ugo+x /usr/bin/umoci
