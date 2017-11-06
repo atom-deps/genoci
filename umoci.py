@@ -219,3 +219,4 @@ class Umoci:
 
     def CopyFile(self, src, dest):
         shutil.copy(src, self.chrootdir + "/" + dest)
+        return True
