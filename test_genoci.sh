@@ -80,6 +80,11 @@ copy2:
     - file1 file1
     - file2 file2
   entrypoint: /bin/sh
+prepost:
+  base: bb
+  pre: touch %ROOT%/ab
+  post: rm %ROOT%/ab
+  run: test -f /ab
 EOF
 
 mkdir "${testdir}/tar1"
@@ -115,3 +120,6 @@ diff file1 copy1/rootfs/file1
 
 umoci unpack --image oci:copy2 copy2
 diff file2 copy2/rootfs/file2
+
+umoci unpack --image oci:prepost prepost
+! test -f prepost/rootfs/ab

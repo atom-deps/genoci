@@ -174,7 +174,7 @@ class Umoci:
         del odir
 
     # TODO - handle arguments
-    def RunInChroot(self, filename):
+    def RunInChroot(self, filename, in_host_ns):
         runname = self.chrootdir + "/ocirun"
         try:
             os.remove(runname)
@@ -183,12 +183,15 @@ class Umoci:
         shutil.copy(filename, runname)
         cmd = "chmod ugo+x " + runname
         os.system(cmd)
-        cmd = 'chroot %s /ocirun' % self.chrootdir
+        if in_host_ns:
+            cmd = '%s/ocirun' % self.chrootdir
+        else:
+            cmd = 'chroot %s /ocirun' % self.chrootdir
         ret = os.system(cmd)
         os.remove(runname)
         return ret == 0
 
-    def ShellInChrootAsFile(self, data):
+    def ShellInChrootAsFile(self, data, in_host_ns):
         # We need a shell of some sort
         if not os.path.exists(self.chrootdir + "/bin/sh"):
             try:
@@ -203,13 +206,16 @@ class Umoci:
             outfile.write(data)
         cmd = "chmod ugo+x " + fullname
         os.system(cmd)
-        cmd = 'chroot %s /ocirun' % self.chrootdir
+        if in_host_ns:
+            cmd = '%s/ocirun' % self.chrootdir
+        else:
+            cmd = 'chroot %s /ocirun' % self.chrootdir
         ret = os.system(cmd)
         os.remove(self.chrootdir + "/ocirun")
         return ret == 0
 
-    def ShellInChroot(self, data):
-        return self.ShellInChrootAsFile(data)
+    def ShellInChroot(self, data, in_host_ns):
+        return self.ShellInChrootAsFile(data, in_host_ns)
 
     def CopyFile(self, src, dest):
         shutil.copy(src, self.chrootdir + "/" + dest)

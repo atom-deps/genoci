@@ -99,11 +99,11 @@ def do_tag(OCI, tag):
     OCI.AddTag(tag, newtag)
 
 # TODO - handle arguments
-def run_file(OCI, fname):
-    return OCI.RunInChroot(fname)
+def run_file(OCI, fname, in_host_ns = False):
+    return OCI.RunInChroot(fname, in_host_ns)
 
-def run_shell(OCI, shell):
-    return OCI.ShellInChroot(shell)
+def run_shell(OCI, shell, in_host_ns = False):
+    return OCI.ShellInChroot(shell, in_host_ns)
 
 OCI = umoci.Umoci(basedir, layoutname, configvalues)
 
@@ -161,6 +161,29 @@ def copy_file(OCI, pair):
         print("Error: badly formed \"from to\" file copy spec: %s" % pair)
         sys.exit(1)
     OCI.CopyFile(copy[0], copy[1])
+
+# Run pre or post hooks, to do things like create a needed
+# mount for a run action.  This runs in the host namespaces.
+def run_hook(OCI, hook):
+    if os.path.exists(hook):
+        if run_file(OCI, hook, in_host_ns = True) is not True:
+            print("Failed running %s for %s" % (run, k))
+            sys.exit(1)
+    else:
+        if run_shell(OCI, hook, in_host_ns = True) is not True:
+            print("Failed executing shell for %s" % k)
+            sys.exit(1)
+
+def handle_pre_post(OCI, tags, k, which):
+    try:
+        hooks = tags[k][which]
+    except:
+        return
+    if type(hooks) is list:
+        for h in hooks:
+            run_hook(OCI, h.replace("%ROOT%", OCI.chrootdir))
+    else:
+        run_hook(OCI, hooks.replace("%ROOT%", OCI.chrootdir))
 
 # copy: copy a file from host into image
 def copy_files(OCI, tags, k):
@@ -273,11 +296,13 @@ while len(todo) != 0:
 
 
         # Run the conversion step
+        handle_pre_post(OCI, tags, k, "pre")
         copy_files(OCI, tags, k)
         install_pkgs(OCI, tags, k)
         expand_tarballs(OCI, tags, k)
         process_runs(OCI, tags, k)
         process_cmds(OCI, tags, k)
+        handle_pre_post(OCI, tags, k, "post")
 
         do_tag(OCI, k)
         completed.append(k)
