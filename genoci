@@ -131,36 +131,41 @@ def process_run(OCI, run):
     if os.path.exists(run):
         if run_file(OCI, run) is not True:
             print("Failed running %s for %s" % (run, k))
-            sys.exit(1)
+            return False
     else:
         if run_shell(OCI, run)is not True:
             print("Failed executing shell for %s" % k)
-            sys.exit(1)
+            return False
+    return True
 
 def process_runs(OCI, tags, k):
     try:
         runs = tags[k]["run"]
     except:
-        return
+        return True
     if type(runs) is list:
         for r in runs:
-            process_run(OCI, r)
+            if not process_run(OCI, r):
+                return False
     else:
-        process_run(OCI, runs)
+        if not process_run(OCI, runs):
+            return False
+    return True
 
 def process_cmds(OCI, tags, k):
     try:
         runs = tags[k]["entrypoint"]
     except:
-        return
+        return True
     OCI.configs["entrypoint"] = shlex.split(runs)
+    return True
 
 def copy_file(OCI, pair):
     copy = pair.split()
     if len(copy) != 2:
         print("Error: badly formed \"from to\" file copy spec: %s" % pair)
-        sys.exit(1)
-    OCI.CopyFile(copy[0], copy[1])
+        return False
+    return OCI.CopyFile(copy[0], copy[1])
 
 # Run pre or post hooks, to do things like create a needed
 # mount for a run action.  This runs in the host namespaces.
@@ -168,40 +173,45 @@ def run_hook(OCI, hook):
     if os.path.exists(hook):
         if run_file(OCI, hook, in_host_ns = True) is not True:
             print("Failed running %s for %s" % (run, k))
-            sys.exit(1)
+            return False
     else:
         if run_shell(OCI, hook, in_host_ns = True) is not True:
             print("Failed executing shell for %s" % k)
-            sys.exit(1)
+            return False
+    return True
 
 def handle_pre_post(OCI, tags, k, which):
     try:
         hooks = tags[k][which]
     except:
-        return
+        return True
     if type(hooks) is list:
         for h in hooks:
-            run_hook(OCI, h.replace("%ROOT%", OCI.chrootdir))
+            if not run_hook(OCI, h.replace("%ROOT%", OCI.chrootdir)):
+                return False
+        return True
     else:
-        run_hook(OCI, hooks.replace("%ROOT%", OCI.chrootdir))
+        return run_hook(OCI, hooks.replace("%ROOT%", OCI.chrootdir))
 
 # copy: copy a file from host into image
 def copy_files(OCI, tags, k):
     try:
         files = tags[k]["copy"]
     except:
-        return
+        return True
     if type(files) is list:
         for f in files:
-            copy_file(OCI, f)
+            if not copy_file(OCI, f):
+                return False
+        return True
     else:
-        copy_file(OCI, files)
+        return copy_file(OCI, files)
 
 def install_pkg(OCI, pkg):
     s = os.path.splitext(pkg)
     if len(s) != 2:
         print("Bad package name: %s" % pkg)
-        sys.exit(1)
+        return False
     pkgfile = OCI.chrootdir + "/" + pkg
     if pkg[0:7] == "http://" or pkg[0:8] == "https://" or pkg[0:6] == "ftp://":
         bname = os.path.basename(pkg)
@@ -225,31 +235,34 @@ def install_pkg(OCI, pkg):
         cmd = 'chroot %s rpm -Uvh %s' % (OCI.chrootdir, pkg)
     else:
         print("Unknown package type: %s" % s[1])
-        sys.exit(1)
+        return False
     print("Installing package: %s" % pkg)
     ret = os.system(cmd)
     if delfile:
         os.remove(pkgfile)
     if ret != 0:
         print("Error installing")
-        sys.exit(1)
+        return False
     print ("%s installed" % pkg)
+    return True
 
 # install: install an rpm from the host
 # arguments: a list of package filenames, separated by spaces
-# Todo - support debs?
 def install_pkgs(OCI, tags, k):
     try:
         files = tags[k]["install"]
     except:
-        return
+        return True
     if type(files) is list:
         for pkg in files:
-            install_pkg(OCI, pkg)
-        return
+            if not install_pkg(OCI, pkg):
+                return False
+        return True
     pkglist = files.split()
     for p in pkglist:
-        install_pkg(OCI, p)
+        if not install_pkg(OCI, p):
+            return False
+    return True
 
 def expand_tarball(OCI, tar):
     cmd = 'tar --acls --xattrs --auto-compress -xf %s -C %s' % (tar, OCI.chrootdir)
@@ -258,22 +271,26 @@ def expand_tarball(OCI, tar):
     ret = os.system(cmd)
     if ret != 0:
         print("Error installing")
-        sys.exit(1)
+        return False
     print("%s expanded" % tar)
+    return True
 
 # expand: expand a tarball from the host
 def expand_tarballs(OCI, tags, k):
     try:
         files = tags[k]["expand"]
     except:
-        return
+        return True
     if type(files) is list:
         for p in files:
-            expand_tarball(OCI, p)
-        return
+            if not expand_tarball(OCI, p):
+                return False
+        return True
     pkglist = files.split()
     for p in pkglist:
-        expand_tarball(OCI, p)
+        if not expand_tarball(OCI, p):
+            return False
+    return True
 
 while len(todo) != 0:
     for k in todo:
@@ -296,12 +313,30 @@ while len(todo) != 0:
 
 
         # Run the conversion step
-        handle_pre_post(OCI, tags, k, "pre")
-        copy_files(OCI, tags, k)
-        install_pkgs(OCI, tags, k)
-        expand_tarballs(OCI, tags, k)
-        process_runs(OCI, tags, k)
-        process_cmds(OCI, tags, k)
+        if not handle_pre_post(OCI, tags, k, "pre"):
+            handle_pre_post(OCI, tags, k, "post")
+            print("Failed running pre hooks")
+            sys.exit(1)
+        if not copy_files(OCI, tags, k):
+            print("Failed copying files")
+            handle_pre_post(OCI, tags, k, "post")
+            sys.exit(1)
+        if not install_pkgs(OCI, tags, k):
+            print("Failed installing packages")
+            handle_pre_post(OCI, tags, k, "post")
+            sys.exit(1)
+        if not expand_tarballs(OCI, tags, k):
+            print("Failed expanding tarballs")
+            handle_pre_post(OCI, tags, k, "post")
+            sys.exit(1)
+        if not process_runs(OCI, tags, k):
+            print("Failed running actions")
+            handle_pre_post(OCI, tags, k, "post")
+            sys.exit(1)
+        if not process_cmds(OCI, tags, k):
+            print("Failed setting entrypoint")
+            handle_pre_post(OCI, tags, k, "post")
+            sys.exit(1)
         handle_pre_post(OCI, tags, k, "post")
 
         do_tag(OCI, k)
