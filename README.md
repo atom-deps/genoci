@@ -84,6 +84,8 @@ should be a single pair of filenames separated by a space, the
 source path on the host and the relative dest path in the container,
 or a yaml list of such pairs.
 1. 'install' means install a .rpm or .deb package.
+1. 'pre' and 'post' are hooks which run before an after the actions.
+I've used this for instance to mount an /etc/resolv.conf.
 
 ## Dependencies:
 
@@ -112,6 +114,7 @@ location for loopback file and mounted btrfs:
 ```bash
 mkdir -p ~/.config/atom
 cat > ~/.config/atom/config.yaml << EOF
+driver: btrfs
 lofile: /tmp/lofile
 btrfsmount: /tmp/btrfs.mount
 EOF
@@ -148,3 +151,10 @@ builds should be doable in a user namespace by using:
 ```bash
 lxc-usernsexec ./genoci data.yaml
 ```
+
+Then again, time is probably better spent on making sure these work
+correctly in the replacement tool, stacker.
+
+## Warning
+
+A bug in this tool can easily wipe your system or kick your kitten.
