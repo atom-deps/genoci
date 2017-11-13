@@ -84,13 +84,13 @@ should be a single pair of filenames separated by a space, the
 source path on the host and the relative dest path in the container,
 or a yaml list of such pairs.
 1. 'install' means install a .rpm or .deb package.
+1. 'entrypoint' sets a default command for the application container to run.
 1. 'pre' and 'post' are hooks which run before an after the actions.
 I've used this for instance to mount an /etc/resolv.conf.
 
 ## Dependencies:
 
-This requires umoci and will likely require skopeo, depending on
-where we cut off the workflow.
+This requires umoci and python-yaml.
 
 ## Use with lpack
 
