@@ -18,6 +18,11 @@
 
 import datetime
 import os
+try:                            #py3
+      from shlex import quote
+except ImportError:             #py2
+      from pipes import quote
+
 import shutil
 import subprocess
 import sys
@@ -156,8 +161,9 @@ class Umoci:
 
         # set environment if in config
         if len(self.configs["environment"]) != 0:
+            envargs = ''
             for arg in self.configs["environment"]:
-                envargs = envargs + ' --config.env="' + arg + '"'
+                envargs = envargs + ' --config.env={}'.format(quote(arg))
             ret = os.system(cfgcmd + envargs)
             assert(0 == ret)
 

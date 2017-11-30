@@ -168,8 +168,7 @@ def process_annotations(OCI, tags, k):
         annotations = tags[k]["annotations"]
     except:
         return True
-    envs = [v for k, v in annotations.items()
-            if k == "env"]
+    envs = [d['env'] for d in annotations if 'env' in d]
     OCI.configs["environment"] = envs
     return True
 
