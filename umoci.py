@@ -82,7 +82,7 @@ class Umoci:
         del odir
 
     def clearconfig(self):
-        self.configs = { "entrypoint": [] }
+        self.configs = { "entrypoint": [], "environment": [] }
 
     def ListTags(self):
         odir = Chdir(self.parentdir)
@@ -145,12 +145,20 @@ class Umoci:
             assert(0 == os.system(cmd))
             del odir
 
+        cfgcmd = 'umoci config --image %s/%s:%s' % (self.parentdir, self.name, tag)
         # set the entrypoint if specified
         if len(self.configs["entrypoint"]) != 0:
-            cmd = 'umoci config --image %s/%s:%s' % (self.parentdir, self.name, tag)
+            epargs = ''
             for arg in self.configs["entrypoint"]:
-                cmd = cmd + ' --config.cmd="' + arg + '"'
-            ret = os.system(cmd)
+                epargs = epargs + ' --config.cmd="' + arg + '"'
+            ret = os.system(cfgcmd + epargs)
+            assert(0 == ret)
+
+        # set environment if in config
+        if len(self.configs["environment"]) != 0:
+            for arg in self.configs["environment"]:
+                envargs = envargs + ' --config.env="' + arg + '"'
+            ret = os.system(cfgcmd + envargs)
             assert(0 == ret)
 
     def AddTag(self, tag, newtag):
