@@ -160,6 +160,18 @@ def process_cmds(OCI, tags, k):
     OCI.configs["entrypoint"] = shlex.split(runs)
     return True
 
+def process_annotations(OCI, tags, k):
+    """get environment keys out of annotations
+    currently ignores other annotations.
+    """
+    try:
+        annotations = tags[k]["annotations"]
+    except:
+        return True
+    envs = [d['env'] for d in annotations if 'env' in d]
+    OCI.configs["environment"] = envs
+    return True
+
 def copy_file(OCI, pair):
     copy = pair.split()
     if len(copy) != 2:
@@ -335,6 +347,10 @@ while len(todo) != 0:
             sys.exit(1)
         if not process_cmds(OCI, tags, k):
             print("Failed setting entrypoint")
+            handle_pre_post(OCI, tags, k, "post")
+            sys.exit(1)
+        if not process_annotations(OCI, tags, k):
+            print("Failed setting annotations")
             handle_pre_post(OCI, tags, k, "post")
             sys.exit(1)
         handle_pre_post(OCI, tags, k, "post")
