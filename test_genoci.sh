@@ -87,6 +87,16 @@ prepost:
   run: test -f /ab
 EOF
 
+cat > "${testdir}/r-fail1.yaml" << EOF
+# fail an action between pre and post
+# Then test whether ab got properly removed
+withfail:
+  base: bb
+  pre: touch CANARY
+  post: rm CANARY
+  run: test -f /cdef
+EOF
+
 mkdir "${testdir}/tar1"
 touch "${testdir}/tar1/ab"
 mkdir "${testdir}/tar2"
@@ -123,3 +133,10 @@ diff file2 copy2/rootfs/file2
 
 umoci unpack --image oci:prepost prepost
 ! test -f prepost/rootfs/ab
+
+# this will fail:
+../genoci ./r-fail1.yaml || true
+# make sure it cleaned up
+test ! -d unpacked
+test ! -f CANARY
+

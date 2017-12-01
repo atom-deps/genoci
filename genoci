@@ -304,7 +304,8 @@ def expand_tarballs(OCI, tags, k):
             return False
     return True
 
-while len(todo) != 0:
+ok = True
+while ok and len(todo) != 0:
     for k in todo:
         # check to see whether it depends on another not-completed base
         OCI.clearconfig()
@@ -329,35 +330,41 @@ while len(todo) != 0:
             handle_pre_post(OCI, tags, k, "post")
             print("Failed running pre hooks")
             sys.exit(1)
-        if not copy_files(OCI, tags, k):
-            print("Failed copying files")
+        try:
+            stage = "copying files"
+            if not copy_files(OCI, tags, k):
+                ok = False
+            stage = "installing packages"
+            if ok and not install_pkgs(OCI, tags, k):
+                ok = False
+            stage = "expanding tarballs"
+            if ok and not expand_tarballs(OCI, tags, k):
+                ok = False
+            stage = "Failed running actions"
+            if ok and not process_runs(OCI, tags, k):
+                ok = False
+            stage = "setting entrypoint"
+            if ok and not process_cmds(OCI, tags, k):
+                ok = False
+            stage = "setting annotations"
+            if ok and not process_annotations(OCI, tags, k):
+                ok = False
+        except Exception as e:
+            ok = False
+            print("Failed %s: %s" % stage, e)
             handle_pre_post(OCI, tags, k, "post")
-            sys.exit(1)
-        if not install_pkgs(OCI, tags, k):
-            print("Failed installing packages")
-            handle_pre_post(OCI, tags, k, "post")
-            sys.exit(1)
-        if not expand_tarballs(OCI, tags, k):
-            print("Failed expanding tarballs")
-            handle_pre_post(OCI, tags, k, "post")
-            sys.exit(1)
-        if not process_runs(OCI, tags, k):
-            print("Failed running actions")
-            handle_pre_post(OCI, tags, k, "post")
-            sys.exit(1)
-        if not process_cmds(OCI, tags, k):
-            print("Failed setting entrypoint")
-            handle_pre_post(OCI, tags, k, "post")
-            sys.exit(1)
-        if not process_annotations(OCI, tags, k):
-            print("Failed setting annotations")
-            handle_pre_post(OCI, tags, k, "post")
-            sys.exit(1)
+            break
+
         handle_pre_post(OCI, tags, k, "post")
 
+        if not ok:
+            print("Failed %s (internal error)" % stage)
+            break
         do_tag(OCI, k)
         completed.append(k)
 
 if os.path.exists(unpackdir):
     shutil.rmtree(unpackdir)
+if not ok:
+    sys.exit(1)
 print("Done")
