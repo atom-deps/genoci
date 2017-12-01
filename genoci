@@ -92,6 +92,9 @@ def is_version(x):
     except:
         return False
 
+class StepException(Exception):
+    "An error while processing a recipe step"
+    
 def do_tag(OCI, tag):
     OCI.DelTag(tag, False)
     OCI.Tag(tag)
@@ -100,10 +103,12 @@ def do_tag(OCI, tag):
 
 # TODO - handle arguments
 def run_file(OCI, fname, in_host_ns = False):
-    return OCI.RunInChroot(fname, in_host_ns)
+    if OCI.RunInChroot(fname, in_host_ns) is False:
+        raise StepException("failed running file " + fname)
 
 def run_shell(OCI, shell, in_host_ns = False):
-    return OCI.ShellInChroot(shell, in_host_ns)
+    if OCI.ShellInChroot(shell, in_host_ns) is False:
+        raise StepException("failed executing '%s'" % shell)
 
 OCI = umoci.Umoci(basedir, layoutname, configvalues)
 
@@ -129,15 +134,13 @@ print("To do: %s" % str(todo))
 # run: run a command inside the image.
 def process_run(OCI, run):
     if os.path.exists(run):
-        if run_file(OCI, run) is not True:
-            print("Failed running %s for %s" % (run, k))
-            return False
+        run_file(OCI, run)
     else:
-        if run_shell(OCI, run)is not True:
-            print("Failed executing shell for %s" % k)
-            return False
-    return True
+        run_shell(OCI, run)
 
+# run commands in container
+# arguments: a list of commands or files to run
+#  OR a single string that should be run as ONE file.
 def process_runs(OCI, tags, k):
     try:
         runs = tags[k]["run"]
@@ -145,20 +148,16 @@ def process_runs(OCI, tags, k):
         return True
     if type(runs) is list:
         for r in runs:
-            if not process_run(OCI, r):
-                return False
+            process_run(OCI, r)
     else:
-        if not process_run(OCI, runs):
-            return False
-    return True
+        process_run(OCI, runs)
 
 def process_cmds(OCI, tags, k):
     try:
         runs = tags[k]["entrypoint"]
     except:
-        return True
+        return
     OCI.configs["entrypoint"] = shlex.split(runs)
-    return True
 
 def process_annotations(OCI, tags, k):
     """get environment keys out of annotations
@@ -167,63 +166,55 @@ def process_annotations(OCI, tags, k):
     try:
         annotations = tags[k]["annotations"]
     except:
-        return True
+        return
     envs = [d['env'] for d in annotations if 'env' in d]
     OCI.configs["environment"] = envs
-    return True
 
 def copy_file(OCI, pair):
     copy = pair.split()
     if len(copy) != 2:
-        print("Error: badly formed \"from to\" file copy spec: %s" % pair)
-        return False
-    return OCI.CopyFile(copy[0], copy[1])
+        raise StepException("badly formed \"from to\" file copy spec: %s" % pair)
+    if OCI.CopyFile(copy[0], copy[1]) is False:
+        raise StepException("error copying %s" % pair)
 
 # Run pre or post hooks, to do things like create a needed
 # mount for a run action.  This runs in the host namespaces.
 def run_hook(OCI, hook):
     if os.path.exists(hook):
-        if run_file(OCI, hook, in_host_ns = True) is not True:
-            print("Failed running %s for %s" % (run, k))
-            return False
+        run_file(OCI, hook, in_host_ns = True)
     else:
-        if run_shell(OCI, hook, in_host_ns = True) is not True:
-            print("Failed executing shell for %s" % k)
-            return False
-    return True
+        run_shell(OCI, hook, in_host_ns = True)
 
 def handle_pre_post(OCI, tags, k, which):
     try:
         hooks = tags[k][which]
     except:
-        return True
+        return
+
     if type(hooks) is list:
         for h in hooks:
-            if not run_hook(OCI, h.replace("%ROOT%", OCI.chrootdir)):
-                return False
-        return True
+            run_hook(OCI, h.replace("%ROOT%", OCI.chrootdir))
     else:
-        return run_hook(OCI, hooks.replace("%ROOT%", OCI.chrootdir))
+        run_hook(OCI, hooks.replace("%ROOT%", OCI.chrootdir))
 
 # copy: copy a file from host into image
 def copy_files(OCI, tags, k):
     try:
         files = tags[k]["copy"]
     except:
-        return True
-    if type(files) is list:
-        for f in files:
-            if not copy_file(OCI, f):
-                return False
-        return True
-    else:
-        return copy_file(OCI, files)
+        return
+
+    if type(files) is not list:
+        files = [files]
+
+    for f in files:
+        copy_file(OCI, f)
 
 def install_pkg(OCI, pkg):
     s = os.path.splitext(pkg)
     if len(s) != 2:
-        print("Bad package name: %s" % pkg)
-        return False
+        raise StepException("Bad package name: %s" % pkg)
+
     pkgfile = OCI.chrootdir + "/" + pkg
     if pkg[0:7] == "http://" or pkg[0:8] == "https://" or pkg[0:6] == "ftp://":
         bname = os.path.basename(pkg)
@@ -246,35 +237,32 @@ def install_pkg(OCI, pkg):
     elif s[1] == ".rpm":
         cmd = 'chroot %s rpm -Uvh %s' % (OCI.chrootdir, pkg)
     else:
-        print("Unknown package type: %s" % s[1])
-        return False
+        raise StepException("install_pkg: Unknown package type: %s" % s[1])
+
     print("Installing package: %s" % pkg)
     ret = os.system(cmd)
     if delfile:
         os.remove(pkgfile)
     if ret != 0:
-        print("Error installing")
-        return False
+        raise StepException("Error installing %s" % pkg)
+
     print ("%s installed" % pkg)
-    return True
+
 
 # install: install an rpm from the host
-# arguments: a list of package filenames, separated by spaces
+# arguments: a list of package filenames, either as a python list or a space-separated list in a string
 def install_pkgs(OCI, tags, k):
     try:
         files = tags[k]["install"]
     except:
-        return True
-    if type(files) is list:
-        for pkg in files:
-            if not install_pkg(OCI, pkg):
-                return False
-        return True
-    pkglist = files.split()
-    for p in pkglist:
-        if not install_pkg(OCI, p):
-            return False
-    return True
+        return
+
+    if type(files) is not list:
+        files = files.split()
+
+    for pkg in files:
+        install_pkg(OCI, pkg)
+
 
 def expand_tarball(OCI, tar):
     cmd = 'tar --acls --xattrs --auto-compress -xf %s -C %s' % (tar, OCI.chrootdir)
@@ -282,27 +270,24 @@ def expand_tarball(OCI, tar):
     print("Expanding tarball %s into %s" % (tar, OCI.chrootdir))
     ret = os.system(cmd)
     if ret != 0:
-        print("Error installing")
-        return False
+        raise StepException("expanding %s into " % (tar, OCI.chrootdir))
+
     print("%s expanded" % tar)
-    return True
+
 
 # expand: expand a tarball from the host
+# arguments: a list of tarballs, either as a python list or a space-separated list in a string
 def expand_tarballs(OCI, tags, k):
     try:
         files = tags[k]["expand"]
     except:
         return True
-    if type(files) is list:
-        for p in files:
-            if not expand_tarball(OCI, p):
-                return False
-        return True
-    pkglist = files.split()
-    for p in pkglist:
-        if not expand_tarball(OCI, p):
-            return False
-    return True
+    if type(files) is not list:
+        files = files.split()
+        
+    for p in files:
+        expand_tarball(OCI, p)
+
 
 ok = True
 while ok and len(todo) != 0:
@@ -311,6 +296,7 @@ while ok and len(todo) != 0:
         OCI.clearconfig()
         base = tags[k]["base"]
         if base in todo:
+            print("my base '%s' is in todo, skipping me" % base)
             continue
         todo.remove(k)
 
@@ -322,46 +308,41 @@ while ok and len(todo) != 0:
             OCI.Unpack(base)
         else:
             print("Unknown base: %s" % base)
-            sys.exit(1)
+            ok = False
+            break
 
-
-        # Run the conversion step
-        if not handle_pre_post(OCI, tags, k, "pre"):
-            handle_pre_post(OCI, tags, k, "post")
-            print("Failed running pre hooks")
-            sys.exit(1)
         try:
+            stage = "running pre hooks"
+            handle_pre_post(OCI, tags, k, "pre")
+
             stage = "copying files"
-            if not copy_files(OCI, tags, k):
-                ok = False
+            copy_files(OCI, tags, k)
+
             stage = "installing packages"
-            if ok and not install_pkgs(OCI, tags, k):
-                ok = False
+            install_pkgs(OCI, tags, k)
+
             stage = "expanding tarballs"
-            if ok and not expand_tarballs(OCI, tags, k):
-                ok = False
-            stage = "Failed running actions"
-            if ok and not process_runs(OCI, tags, k):
-                ok = False
+            expand_tarballs(OCI, tags, k)
+
+            stage = "running actions"
+            process_runs(OCI, tags, k)
+
             stage = "setting entrypoint"
-            if ok and not process_cmds(OCI, tags, k):
-                ok = False
+            process_cmds(OCI, tags, k)
+
             stage = "setting annotations"
-            if ok and not process_annotations(OCI, tags, k):
-                ok = False
+            process_annotations(OCI, tags, k)
+
         except Exception as e:
             ok = False
-            print("Failed %s: %s" % stage, e)
+            print("Stopping build: '%s' failed with error: %s." % (stage, e))
             handle_pre_post(OCI, tags, k, "post")
             break
-
-        handle_pre_post(OCI, tags, k, "post")
-
-        if not ok:
-            print("Failed %s (internal error)" % stage)
-            break
-        do_tag(OCI, k)
-        completed.append(k)
+        else:
+            # after all stages are successful, run post steps, and tag layer
+            handle_pre_post(OCI, tags, k, "post")
+            do_tag(OCI, k)
+            completed.append(k)
 
 if os.path.exists(unpackdir):
     shutil.rmtree(unpackdir)

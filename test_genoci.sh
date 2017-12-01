@@ -50,7 +50,7 @@ fi
 
 cp busybox.tar.gz "${testdir}/"
 
-cat > "${testdir}/r1.yaml" << EOF
+cat > "${testdir}/r1.yaml" << "EOF"
 bb:
   base: empty
   expand: busybox.tar.gz
@@ -66,6 +66,11 @@ run2:
 run3:
   base: bb
   run: echo ab > ab
+runscriptasfile:
+  base: bb
+  run: |
+    export GLAYVIN="rebigulator"
+    echo embiggens > $GLAYVIN
 expand1:
   base: bb
   expand:
@@ -120,6 +125,9 @@ grep cd run2/rootfs/cd
 
 umoci unpack --image oci:run3 run3
 grep ab run3/rootfs/ab
+
+umoci unpack --image oci:runscriptasfile runscriptasfile
+grep embiggens runscriptasfile/rootfs/rebigulator
 
 umoci unpack --image oci:expand1 expand1
 test -f expand1/rootfs/ab
