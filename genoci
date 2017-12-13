@@ -174,8 +174,10 @@ def copy_file(OCI, pair):
     copy = pair.split()
     if len(copy) != 2:
         raise StepException("badly formed \"from to\" file copy spec: %s" % pair)
-    if OCI.CopyFile(copy[0], copy[1]) is False:
-        raise StepException("error copying %s" % pair)
+    try:
+        OCI.CopyFile(copy[0], copy[1])
+    except Exception as e:
+        raise StepException("error copying %s: %s" % (pair, e))
 
 # Run pre or post hooks, to do things like create a needed
 # mount for a run action.  This runs in the host namespaces.
