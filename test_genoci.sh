@@ -90,7 +90,15 @@ prepost:
   pre: touch %ROOT%/ab
   post: rm %ROOT%/ab
   run: test -f /ab
+# test recursive copy of xx/yy
+copydir:
+  base: bb
+  copy: xx /xx
+  run: test -f /xx/yy
 EOF
+
+mkdir "${testdir}/xx"
+touch "${testdir}/xx/yy"
 
 cat > "${testdir}/r-fail1.yaml" << EOF
 # fail an action between pre and post

@@ -23,6 +23,7 @@ try:                            #py3
 except ImportError:             #py2
       from pipes import quote
 
+import errno
 import shutil
 import subprocess
 import sys
@@ -232,5 +233,15 @@ class Umoci:
         return self.ShellInChrootAsFile(data, in_host_ns)
 
     def CopyFile(self, src, dest):
-        shutil.copy(src, self.chrootdir + "/" + dest)
-        return True
+        dst = self.chrootdir + "/" + dest
+        try:
+            shutil.copytree(src, dst)
+        except OSError as e:
+            if e.errno == errno.ENOTDIR or e.errno == errno.EEXIST:
+                try:
+                    os.makedirs(os.path.dirname(dst))
+                except:
+                    pass
+                shutil.copy(src, dst)
+            else:
+                raise e
