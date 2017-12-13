@@ -102,6 +102,14 @@ withfail:
   run: test -f /cdef
 EOF
 
+cat > "${testdir}/anns.yaml" << "EOF"
+anns:
+  base: bb
+  annotations:
+    - env: "FOO=bar"
+EOF
+
+
 mkdir "${testdir}/tar1"
 touch "${testdir}/tar1/ab"
 mkdir "${testdir}/tar2"
@@ -148,3 +156,8 @@ umoci unpack --image oci:prepost prepost
 test ! -d unpacked
 test ! -f CANARY
 
+../genoci ./anns.yaml
+umoci raw runtime-config --image oci:anns anns-config.json
+jq '.process.env | join(" ")' < anns-config.json | grep "FOO=bar"
+
+echo Tests completed successfully.
