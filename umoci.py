@@ -217,7 +217,7 @@ class Umoci:
 
         fullname = self.chrootdir + "/ocirun"
         with open(fullname, "w") as outfile:
-            outfile.write("#/bin/sh\n")
+            outfile.write("#/bin/sh -e\n")
             outfile.write(data)
         cmd = "chmod ugo+x " + fullname
         os.system(cmd)
